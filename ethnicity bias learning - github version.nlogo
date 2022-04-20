@@ -62,8 +62,6 @@ to go
     repeat plays_per_learn [play] ; plays_per_learn represents *n* from the manuscript
     learn
     learn-learning-strategy
-    mutate-strategy
-    mutate-learning-strategy
     recolor]
 
   tick
@@ -116,11 +114,11 @@ to play-unconditional
 
     let my-marker marker
     let partner one-of other turtles with [marker = my-marker]
-    if partner != nobody [
-      let s2 [strategy] of partner
+    let s2 [strategy] of partner
+
       ifelse s2 = strategy [
        set payoff payoff + 1][
-       set payoff payoff]]]
+       set payoff payoff]]
 
 end
 
@@ -132,7 +130,7 @@ to play-conditional
 
   ifelse random-float 1 < random-pairing [
 
-    let my-marker marker
+    let m marker
     let partner one-of other turtles
 
     ; payoff determination is slightly
@@ -141,7 +139,7 @@ to play-conditional
     ; extract the right action from the list
     ; and then execute the code as normal.
 
-    ifelse my-marker = [marker] of partner [
+    ifelse m = [marker] of partner [
 
 
       let s1-play item 0 strategy ; item 0 is the in-group strategy
@@ -156,7 +154,6 @@ to play-conditional
       ;__out-group interaction__
 
       let s1-play item 1 strategy ; item 1 is the out-group strategy
-      let s1-save item 0 strategy
       let s2 [strategy] of partner
       let s2-play item 1 s2
 
@@ -167,17 +164,16 @@ to play-conditional
   ][
     ;__the in-group pairing case__
 
-    let my-marker marker
-    let partner one-of other turtles with [marker = my-marker]
-    if partner != nobody [
+    let m marker
+    let partner one-of other turtles with [marker = m]
 
-      let s1-play item 0 strategy
-      let s2 [strategy] of partner
-      let s2-play item 0 s2
+    let s1-play item 0 strategy
+    let s2 [strategy] of partner
+    let s2-play item 0 s2
 
-      ifelse s2-play = s1-play [
-        set payoff payoff + 1][
-        set payoff payoff]]]
+    ifelse s2-play = s1-play [
+      set payoff payoff + 1][
+      set payoff payoff]]
 
 end
 
@@ -197,14 +193,14 @@ to play-unconditional-spatial
 
   ][
 
-    let my-marker marker
+    let m marker
     let possible-partners turtles-on neighbors
-    let partner one-of possible-partners with [marker = my-marker]
-    if partner != nobody [
-      let s2 [strategy] of partner
-      ifelse s2 = strategy [
-       set payoff payoff + 1][
-       set payoff payoff]]]
+    let partner one-of possible-partners with [marker = m]
+    let s2 [strategy] of partner
+
+    ifelse s2 = strategy [
+     set payoff payoff + 1][
+     set payoff payoff]]
 
 end
 
@@ -212,11 +208,11 @@ end
 to play-conditional-spatial
   ifelse random-float 1 < random-pairing [
 
-    let my-marker marker
+    let m marker
     let possible-partners turtles-on neighbors
     let partner one-of possible-partners
 
-    ifelse my-marker = [marker] of partner [
+    ifelse m = [marker] of partner [
 
 
       let s1-play item 0 strategy ; here
@@ -230,7 +226,6 @@ to play-conditional-spatial
     [
 
       let s1-play item 1 strategy
-      let s1-save item 0 strategy
       let s2 [strategy] of partner
       let s2-play item 1 s2
 
@@ -240,27 +235,37 @@ to play-conditional-spatial
 
   ][
 
-    let my-marker marker
+    let m marker
     let possible-partners turtles-on neighbors
-    let partner one-of possible-partners with [marker = my-marker]
-    if partner != nobody [
+    let partner one-of possible-partners with [marker = m]
 
-      let s1-play item 0 strategy
-      let s2 [strategy] of partner
-      let s2-play item 0 s2
+    let s1-play item 0 strategy
+    let s2 [strategy] of partner
+    let s2-play item 0 s2
 
-      ifelse s2-play = s1-play [
-        set payoff payoff + 1][
-        set payoff payoff]]]
+    ifelse s2-play = s1-play [
+      set payoff payoff + 1][
+      set payoff payoff]]
 
 end
 
 ; ======================= learning algos =======================
 
 to learn
-  ifelse spatial? = True [
-    learn-spatial][
-    learn-nonspatial]
+
+  ; check if the agent will mutate. If so
+  ; skip learning and go straight to mutation
+  ; otherwise, learn.
+
+  ifelse random-float 1 < mr_strategy [
+    mutate-strategy][
+
+    ; then check if learning will happen spatially
+    ; or non-spatially.
+
+    ifelse spatial? = True [
+      learn-spatial][
+      learn-nonspatial]]
 
 end
 
@@ -289,15 +294,10 @@ to learn-nonspatial
     let m marker
     let partner one-of other turtles with [marker = m]
 
-    ; checking if your partner is nobody prevents
-    ; errors. Sometimes you are the only member of the ethnic
-    ; group there is no other partner to pick.
+    let training-data [payoff] of partner
 
-    if partner != nobody [
-      let training-data [payoff] of partner
-
-      if random-float 1 < (training-data - payoff) / plays_per_learn [
-        set strategy ([strategy] of partner)]]]
+    if random-float 1 < (training-data - payoff) / plays_per_learn [
+      set strategy ([strategy] of partner)]]
 
 end
 
@@ -330,9 +330,17 @@ end
 ;================ learning strategy algos ===================
 
 to learn-learning-strategy
-  ifelse spatial? = True [
-    learn-learning-strategy-spatial][
-    learn-learning-strategy-nonspatial]
+
+  ; check if the player will mutate their learning strategy
+
+  ifelse random-float 1 < mr_learning_strategy [
+    mutate-learning-strategy][
+
+    ; check if 2nd-order learning is constrained by space or not
+
+    ifelse spatial? = True [
+      learn-learning-strategy-spatial][
+      learn-learning-strategy-nonspatial]]
 end
 
 
@@ -344,15 +352,14 @@ to learn-learning-strategy-nonspatial
   let teacher one-of other turtles ; with [marker = m] ; I left this piece of commented out code.
                                                        ; so you can easily toggle on marker-based second order learning.
                                                        ; It seems to have no effect on the results.
-  if teacher != nobody [
-    let ls [learning-strategy] of teacher
-    let data [payoff] of teacher
+  let ls [learning-strategy] of teacher
+  let data [payoff] of teacher
 
-    ; copy their learning strategy if they recieved
-    ; a larger payoff.
+  ; copy their learning strategy if they recieved
+  ; a larger payoff.
 
-    if random-float 1 < (data - payoff) / plays_per_learn [
-      set learning-strategy ls]]
+  if random-float 1 < (data - payoff) / plays_per_learn [
+    set learning-strategy ls]
 
 end
 
@@ -363,52 +370,51 @@ to learn-learning-strategy-spatial
 
   let possible-partners turtles-on neighbors
   let teacher one-of possible-partners
-  if teacher != nobody [
-    let ls [learning-strategy] of teacher
-    let data [payoff] of teacher
+  let ls [learning-strategy] of teacher
+  let data [payoff] of teacher
 
-    if random-float 1 < (data - payoff) / plays_per_learn [
-      set learning-strategy ls]]
+  if random-float 1 < (data - payoff) / plays_per_learn [
+    set learning-strategy ls]
 
 end
 
 ; ====================== disruptors ===================
 
-to mutate-learning-strategy
-
-  ; a mutation rate for learning strategies
-
-  if random-float 1 < mr_learning_style [
-    set learning-strategy random 2]
-end
-
 to mutate-strategy
 
   ; a mutation rate for behavioral strategies
 
-  if random-float 1 < mr_strategy [
-    ifelse conditional_strategies? = True [
-      set strategy list random 2 random 2][
-      set strategy random 2]]
+  ifelse conditional_strategies? = True [
+    set strategy list random 2 random 2][
+    set strategy random 2]
+end
+
+to mutate-learning-strategy
+
+  ; sets the learning strategy to a random one
+
+  set learning-strategy random 2
 end
 
 ;===================== aesthetics =====================
 
 to recolor
 
-  ; implements the color scheme
-  ; behavior 0 is a deep red
-  ; behavior 1 is a deep blue
+  ifelse conditional_strategies? = False [
 
-  if strategy = 0 [set color 26]
-  if strategy = 1 [set color 94]
+    ; implements the color scheme
+    ; behavior 0 is a deep red
+    ; behavior 1 is a deep blue
 
-  ; a more complex color scheme for conditional strategies
+    if strategy = 0 [set color 26]
+    if strategy = 1 [set color 94]][
 
-  if strategy = [0 0] [set color 94]
-  if strategy = [1 1] [set color 86]
-  if strategy = [1 0] [set color 15]
-  if strategy = [0 1] [set color 26]
+    ; a more complex color scheme for conditional strategies
+
+    if strategy = [0 0] [set color 94]
+    if strategy = [1 1] [set color 86]
+    if strategy = [1 0] [set color 15]
+    if strategy = [0 1] [set color 26]]
 
 end
 
@@ -461,7 +467,7 @@ random-pairing
 random-pairing
 0
 1
-0.49
+0.64
 0.01
 1
 NIL
@@ -536,9 +542,9 @@ PENS
 
 PLOT
 569
-162
-790
-332
+161
+791
+331
 strategy frequencies
 NIL
 NIL
@@ -550,17 +556,17 @@ true
 true
 "" ""
 PENS
-"behavior 0" 1.0 0 -13345367 true "" "plot count turtles with [strategy = 0] / num-turtles"
-"behavior 1" 1.0 0 -2674135 true "" "plot count turtles with [strategy = 1] / num-turtles"
-"[0 0]" 1.0 0 -10649926 true "" "plot count turtles with [strategy = [0 0]] / num-turtles"
-"[1 0]" 1.0 0 -2674135 true "" "plot count turtles with [strategy = [1 0]] / num-turtles"
-"[0 1]" 1.0 0 -817084 true "" "plot count turtles with [strategy = [0 1]] / num-turtles"
-"[1 1]" 1.0 0 -8275240 true "" "plot count turtles with [strategy = [1 1]] / num-turtles"
+"behavior A" 1.0 0 -817084 true "" "plot count turtles with [strategy = 0] / num-turtles"
+"behavior B" 1.0 0 -14454117 true "" "plot count turtles with [strategy = 1] / num-turtles"
+"[A A]" 1.0 0 -10649926 true "" "plot count turtles with [strategy = [0 0]] / num-turtles"
+"[A B]" 1.0 0 -2674135 true "" "plot count turtles with [strategy = [1 0]] / num-turtles"
+"[B A]" 1.0 0 -817084 true "" "plot count turtles with [strategy = [0 1]] / num-turtles"
+"[B B]" 1.0 0 -8275240 true "" "plot count turtles with [strategy = [1 1]] / num-turtles"
 
 PLOT
 209
 161
-556
+563
 331
 social learning
 NIL
@@ -579,10 +585,10 @@ PENS
 SLIDER
 21
 121
-193
+195
 154
-mr_learning_style
-mr_learning_style
+mr_learning_strategy
+mr_learning_strategy
 0
 1
 0.0
@@ -600,7 +606,7 @@ initial_proportion_ethnic_learning
 initial_proportion_ethnic_learning
 0
 1
-0.96
+0.5
 .01
 1
 NIL
@@ -615,7 +621,7 @@ plays_per_learn
 plays_per_learn
 0
 10
-9.0
+1.0
 1
 1
 NIL
@@ -628,7 +634,7 @@ SWITCH
 227
 conditional_strategies?
 conditional_strategies?
-0
+1
 1
 -1000
 
@@ -646,13 +652,28 @@ spatial?
 @#$#@#$#@
 ## WHAT IS IT?
 
-This model studies the conditions under which ethnicity biased social learning is adaptive. --- underdevelopment.
+This model studies the conditions under which ethnicity biased social learning is adaptive. Detailed description and motivation for the model can be found in the paper that accompanies this file on [Github](https://github.com/daniel-saunders-phil)
 
 ## HOW TO USE IT
 
-## THINGS TO NOTICE
+To simulate the model, simply press setup and then go. The model will run until you unclick go. To generate a new population and try the model again, just press setup. 
 
-(suggested things for the user to notice while running the model)
+I'm going to walk you through each parameter.
+
+`random-pairing` - controls how often players interact with the outgroup. When it is high, they interact often. When it is low, they interact rarely. Here's how the code works: when players go to select a partner, Netlogo generates a random number between 0 and 1. Then it compares this random number to the pairing parameter. Two things might happen, depending on the result of the comparison. If the random number is less than the pairing rate, the player will select a partner at random from the whole population. If the random number is greater than the pairing rate, the player will select a partner from their own group. In this way, the pairing rate controls the average proportion of interactions that occur within the group.
+
+`initial_proportion_ethnic_learning` - controls how many players start the simulation with in-group social learning. 
+
+`mr_strategy` - players have a probability of flipping to a random strategy instead of learning. This controls that probability. This represents genetic mutation or behavioral experimention.
+
+`mr_learning_strategy` - the same but for the learning strategy.
+
+`plays_per_learn` - controls how many times the players play before they attempt to learn. Each player simply loops over the playing step a number of times specified by this parameter and tallies up their payoffs across those interactions.
+
+`conditional_strategies?` - turn on to introduce conditional strategies. Players can now take different actions depending on whether they are playing against an ingroup member or and outgroup member.
+
+`spatial?` - turn on to impose a spatial structure on interaction. When it's on, every play, learn or second-order learning interaction occurs with neighbors. Players
+
 @#$#@#$#@
 default
 true
@@ -963,6 +984,87 @@ NetLogo 6.1.1
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
+<experiments>
+  <experiment name="sensitivity_to_random_pairing" repetitions="500" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <timeLimit steps="5000"/>
+    <exitCondition>collapse? or success?</exitCondition>
+    <metric>success?</metric>
+    <metric>collapse?</metric>
+    <enumeratedValueSet variable="spatial?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="random-pairing" first="0.1" step="0.1" last="1"/>
+    <enumeratedValueSet variable="mr_learning_strategy">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="conditional_strategies?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="initial_proportion_ethnic_learning">
+      <value value="0.5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="plays_per_learn">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="mr_strategy">
+      <value value="0"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="sensitivity_to_initial_bias" repetitions="500" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <timeLimit steps="5000"/>
+    <exitCondition>collapse? or success?</exitCondition>
+    <metric>success?</metric>
+    <metric>collapse?</metric>
+    <enumeratedValueSet variable="spatial?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="random-pairing">
+      <value value="0.2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="mr_learning_strategy">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="conditional_strategies?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="initial_proportion_ethnic_learning" first="0.1" step="0.1" last="0.5"/>
+    <enumeratedValueSet variable="plays_per_learn">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="mr_strategy">
+      <value value="0"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="10_plays_per_learn" repetitions="100" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <timeLimit steps="4000"/>
+    <exitCondition>collapse? or success?</exitCondition>
+    <metric>success?</metric>
+    <metric>collapse?</metric>
+    <enumeratedValueSet variable="spatial?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="random-pairing" first="0.1" step="0.1" last="0.5"/>
+    <enumeratedValueSet variable="mr_learning_strategy">
+      <value value="0"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="conditional_strategies?">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="initial_proportion_ethnic_learning" first="0.1" step="0.1" last="0.5"/>
+    <enumeratedValueSet variable="plays_per_learn">
+      <value value="10"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="mr_strategy">
+      <value value="0"/>
+    </enumeratedValueSet>
+  </experiment>
+</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default
